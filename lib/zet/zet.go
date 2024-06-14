@@ -1,59 +1,45 @@
 package zet
 
 import (
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
+
+	"github.com/gpontesss/zet-go/lib/search"
 )
 
+var bufSize int64 = 1024
+
+// Zet docs here.
 type Zet struct {
-	filename string
-	file     *os.File
-	metadata map[string]string
-	kasten   *Zettelkasten
+	file   *os.File
+	kasten *Zettelkasten
 }
 
-type Zettelkasten struct {
-	dir  string
-	zets []Zet
+// NewZet docs here.
+func NewZet(dirname string, kasten *Zettelkasten) (Zet, error) {
+	filename := fmt.Sprintf("%s/README.md", dirname)
+	file, err := os.Open(filename)
+	return Zet{file: file, kasten: kasten}, err
 }
 
+// Content docs here.
 func (zet *Zet) Content() (string, error) {
 	var content []byte
 	content, err := ioutil.ReadAll(zet.file)
 	return string(content), err
 }
 
+// Metadata docs here.
 func (zet *Zet) Metadata() (string, error) {
-	return "", nil
-}
-
-func NewZet(dirname string, kasten *Zettelkasten) (Zet, error) {
-	filename := fmt.Sprintf("%s/README.md", dirname)
-	file, err := os.Open(filename)
-	return Zet{filename: filename, file: file, kasten: kasten}, err
-}
-
-func NewZettelkasten(dirname string) (*Zettelkasten, error) {
-	dirs, err := os.ReadDir(dirname)
-	if err != nil {
-		return nil, err
+	ls := search.NewLazySearcher(zet.file, bufSize)
+	ls.Reset()
+	from := search.FindNextStr(&ls, "---")
+	to := search.FindNextStr(&ls, "\n---\n")
+	if from < 0 || to < 0 {
+		return "", errors.New("Failed to read metadata: header is not properly formatted")
 	}
-	kasten := &Zettelkasten{
-		dir:  dirname,
-		zets: make([]Zet, 0, len(dirs))}
-	for _, dir := range dirs {
-		// TODO: properly load only dirs with expected timestamp name
-		if dir.Name() == ".git" || dir.Name() == "buffer" {
-			continue
-		}
-		zet, err := NewZet(fmt.Sprintf("%s/%s", kasten.dir, dir.Name()), kasten)
-		kasten.zets = append(kasten.zets, zet)
-		if err != nil {
-			return nil, fmt.Errorf("Failed to read zet %s: %s", dir.Name(), err)
-		}
-	}
-	return kasten, nil
+	meta, err := ls.ReadRange(from+4, to)
+	return string(meta), err
 }
-
-func (kasten *Zettelkasten) Zets() []Zet { return kasten.zets }
