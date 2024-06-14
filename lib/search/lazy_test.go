@@ -1,4 +1,4 @@
-package seeker
+package search
 
 import (
 	"strings"
@@ -26,8 +26,8 @@ func TestLazySearcher(t *testing.T) {
 
 	t.Run("Test FindStr", func(t *testing.T) {
 		t.Run("Find substring", func(t *testing.T) {
-			if 0 > fs.FindStr("abc") {
-				t.Fatalf("Expected 'abc' to be a substring")
+			if 0 > fs.FindStr("bcd") {
+				t.Fatalf("Expected 'bcd' to be a substring")
 			}
 		})
 		t.Run("Do NOT find substring", func(t *testing.T) {
