@@ -99,17 +99,8 @@ func (ls *lazySearcher) FindStr(str string) int64 {
 	return iter.Index()
 }
 
-// ReadRange reads the specified range of the file and returns it in a buffer.
-// TODO: extract to read package and receive interface io.ReadSeeker
-func (ls *lazySearcher) ReadRange(from, to int64) ([]byte, error) {
-	_, err := ls.rs.Seek(from, seekFromStart)
-	if err != nil {
-		return nil, err
-	}
-	rbuf := make([]byte, to-from)
-	length, err := ls.rs.Read(rbuf)
-	if err != nil && err != io.EOF {
-		return nil, err
-	}
-	return rbuf[0:length], nil
+// LazySeqLen docs here.
+func LazySeqLen(rs io.ReadSeeker, bufSize int64) int64 {
+	ls := NewLazySearcher(rs, bufSize)
+	return SeqLen(&ls)
 }

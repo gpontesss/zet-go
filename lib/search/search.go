@@ -31,3 +31,11 @@ func FindNextStr(s StateSearcher, str string) int64 {
 	}
 	return -1
 }
+
+// Returns the length of the sequence attached to a StateSearcher.
+func SeqLen(s StateSearcher) int64 {
+	s.Reset()
+	for s.Advance() {
+	}
+	return s.Offset()
+}

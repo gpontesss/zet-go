@@ -5,20 +5,16 @@ import (
 	"fmt"
 	"os"
 
+	_io "github.com/gpontesss/zet-go/lib/io"
+	"github.com/gpontesss/zet-go/lib/md"
 	"github.com/gpontesss/zet-go/lib/search"
 	"github.com/yuin/goldmark"
-	"github.com/yuin/goldmark/ast"
+	mdast "github.com/yuin/goldmark/ast"
 	"github.com/yuin/goldmark/text"
 	yaml "gopkg.in/yaml.v3"
 )
 
 var bufSize int64 = 1024
-
-// Zet docs here.
-type Zet struct {
-	file   *os.File
-	kasten *Zettelkasten
-}
 
 // Meta docs here.
 type Meta struct {
@@ -26,56 +22,71 @@ type Meta struct {
 	Tags []string `yaml:"tags"`
 }
 
+// Zet docs here.
+type Zet struct {
+	file      *os.File
+	kasten    *Zettelkasten
+	mdTree    mdast.Node
+	mdContent []byte
+	Meta      Meta
+}
+
 // NewZet docs here.
 func NewZet(dirname string, kasten *Zettelkasten) (Zet, error) {
 	filename := fmt.Sprintf("%s/README.md", dirname)
 	file, err := os.Open(filename)
-	return Zet{file: file, kasten: kasten}, err
+	if err != nil {
+		return Zet{}, fmt.Errorf("Failed to read zet %v file: %w", filename, err)
+	}
+	zet := Zet{file: file, kasten: kasten}
+	if err := zet.parseContent(); err != nil {
+		return Zet{}, fmt.Errorf("Failed to parse zet %v content: %w", filename, err)
+	}
+	return zet, nil
 }
 
+// Title docs here.
 func (zet *Zet) Title() string {
-	content, tree := zet.markdownTree()
-	var header ast.Node
-	ast.Walk(tree, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
-		if n.Kind().String() == "Heading" {
-			header = n
-			return ast.WalkStop, nil
-		}
-		return ast.WalkContinue, nil
-	})
+	header := md.FirstHeading(zet.mdTree)
 	if header != nil {
-		return string(header.Text(content))
+		return string(header.Text(zet.mdContent))
 	}
 	return "<titleless>"
 }
 
-func (zet *Zet) markdownTree() ([]byte, ast.Node) {
-	md := goldmark.New()
+func (zet *Zet) parseContent() error {
 	ls := search.NewLazySearcher(zet.file, bufSize)
 	ls.Reset()
-	search.FindNextStr(&ls, "---")
-	from := search.FindNextStr(&ls, "\n---\n")
-	for ls.Advance() {
+	metaStart := search.FindNextStr(&ls, "---") + 4
+	metaEnd := search.FindNextStr(&ls, "\n---\n")
+	if metaStart < 0 || metaEnd < 0 {
+		return errors.New("Can't to delimit header metadata")
 	}
-	var content []byte
-	content, err := ls.ReadRange(from+4, ls.Offset())
-	if err != nil {
-		panic(err)
+	if err := zet.parseMeta(metaStart, metaEnd); err != nil {
+		return fmt.Errorf("Faile to parse metadata: %w", err)
 	}
-	return content, md.Parser().Parse(text.NewReader(content))
+	mdStart := metaEnd + 4
+	if err := zet.parseMd(mdStart); err != nil {
+		return fmt.Errorf("Failed to parse markdown content: %w", err)
+	}
+	return nil
 }
 
-// Metadata docs here.
-func (zet *Zet) Metadata() (Meta, error) {
-	ls := search.NewLazySearcher(zet.file, bufSize)
-	ls.Reset()
-	from := search.FindNextStr(&ls, "---")
-	to := search.FindNextStr(&ls, "\n---\n")
-	if from < 0 || to < 0 {
-		return Meta{}, errors.New("Failed to read metadata: header is not properly formatted")
+func (zet *Zet) parseMd(startOffset int64) error {
+	var err error
+	zet.mdContent, err = _io.ReadRange(
+		zet.file, startOffset, search.LazySeqLen(zet.file, bufSize))
+	if err != nil {
+		return err
 	}
-	bs, err := ls.ReadRange(from+4, to)
-	var meta Meta
-	yaml.Unmarshal(bs, &meta)
-	return meta, err
+	zet.mdTree = goldmark.New().Parser().Parse(text.NewReader(zet.mdContent))
+	return nil
+}
+
+func (zet *Zet) parseMeta(from, to int64) error {
+	bs, err := _io.ReadRange(zet.file, from, to)
+	if err != nil {
+		return err
+	}
+	return yaml.Unmarshal(bs, &zet.Meta)
 }
