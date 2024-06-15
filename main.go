@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+
 	zet "github.com/gpontesss/zet-go/lib/zet"
 )
 
@@ -16,6 +17,6 @@ func main() {
 		if err != nil {
 			fmt.Printf("Failed to get zet metadata: %s", err)
 		}
-		fmt.Println(meta)
+		fmt.Println(meta.ID, zet.Title())
 	}
 }

@@ -3,10 +3,12 @@ package zet
 import (
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 
 	"github.com/gpontesss/zet-go/lib/search"
+	"github.com/yuin/goldmark"
+	"github.com/yuin/goldmark/ast"
+	"github.com/yuin/goldmark/text"
 	yaml "gopkg.in/yaml.v3"
 )
 
@@ -31,11 +33,36 @@ func NewZet(dirname string, kasten *Zettelkasten) (Zet, error) {
 	return Zet{file: file, kasten: kasten}, err
 }
 
-// Content docs here.
-func (zet *Zet) Content() (string, error) {
+func (zet *Zet) Title() string {
+	content, tree := zet.markdownTree()
+	var header ast.Node
+	ast.Walk(tree, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
+		if n.Kind().String() == "Heading" {
+			header = n
+			return ast.WalkStop, nil
+		}
+		return ast.WalkContinue, nil
+	})
+	if header != nil {
+		return string(header.Text(content))
+	}
+	return "<titleless>"
+}
+
+func (zet *Zet) markdownTree() ([]byte, ast.Node) {
+	md := goldmark.New()
+	ls := search.NewLazySearcher(zet.file, bufSize)
+	ls.Reset()
+	search.FindNextStr(&ls, "---")
+	from := search.FindNextStr(&ls, "\n---\n")
+	for ls.Advance() {
+	}
 	var content []byte
-	content, err := ioutil.ReadAll(zet.file)
-	return string(content), err
+	content, err := ls.ReadRange(from+4, ls.Offset())
+	if err != nil {
+		panic(err)
+	}
+	return content, md.Parser().Parse(text.NewReader(content))
 }
 
 // Metadata docs here.
