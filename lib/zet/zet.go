@@ -7,6 +7,7 @@ import (
 	"os"
 
 	"github.com/gpontesss/zet-go/lib/search"
+	yaml "gopkg.in/yaml.v3"
 )
 
 var bufSize int64 = 1024
@@ -15,6 +16,12 @@ var bufSize int64 = 1024
 type Zet struct {
 	file   *os.File
 	kasten *Zettelkasten
+}
+
+// Meta docs here.
+type Meta struct {
+	ID   int64    `yaml:"id"`
+	Tags []string `yaml:"tags"`
 }
 
 // NewZet docs here.
@@ -32,14 +39,16 @@ func (zet *Zet) Content() (string, error) {
 }
 
 // Metadata docs here.
-func (zet *Zet) Metadata() (string, error) {
+func (zet *Zet) Metadata() (Meta, error) {
 	ls := search.NewLazySearcher(zet.file, bufSize)
 	ls.Reset()
 	from := search.FindNextStr(&ls, "---")
 	to := search.FindNextStr(&ls, "\n---\n")
 	if from < 0 || to < 0 {
-		return "", errors.New("Failed to read metadata: header is not properly formatted")
+		return Meta{}, errors.New("Failed to read metadata: header is not properly formatted")
 	}
-	meta, err := ls.ReadRange(from+4, to)
-	return string(meta), err
+	bs, err := ls.ReadRange(from+4, to)
+	var meta Meta
+	yaml.Unmarshal(bs, &meta)
+	return meta, err
 }

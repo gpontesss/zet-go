@@ -11,10 +11,11 @@ func main() {
 	if err != nil {
 		fmt.Printf("Failed to create Zettelkasten: %s", err)
 	}
-	zet := kasten.Zets()[0]
-	meta, err := zet.Metadata()
-	if err != nil {
-		fmt.Printf("Failed to get zet metadata: %s", err)
+	for _, zet := range kasten.Zets() {
+		meta, err := zet.Metadata()
+		if err != nil {
+			fmt.Printf("Failed to get zet metadata: %s", err)
+		}
+		fmt.Println(meta)
 	}
-	fmt.Println(meta)
 }
